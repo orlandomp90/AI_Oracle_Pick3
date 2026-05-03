@@ -1,0 +1,318 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Oracle Pro v4.0 - Florida Pick 3 Multi-Ensemble</title>
+    <meta name="description" content="Sistema de predicción con 5 modelos de IA (LSTM+GRU+CNN+Transformer+Markov) para Florida Pick 3">
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.22.0/dist/tf.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;800&display=swap" rel="stylesheet">
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+    <div class="background-effects">
+        <div class="glow-orb orb-1"></div>
+        <div class="glow-orb orb-2"></div>
+        <div class="glow-orb orb-3"></div>
+    </div>
+
+    <div class="container">
+        <header>
+            <div class="logo">
+                <h1>AI ORACLE <span class="badge">v4.0 ENSEMBLE</span></h1>
+                <p>5 Modelos (LSTM+GRU+CNN+Transformer+Markov) • 21 Features • Filtros • Walk-Forward</p>
+            </div>
+            <div class="status-bar">
+                <div class="status-item">
+                    <span class="label">Registros DB</span>
+                    <span class="value" id="db-count">0</span>
+                </div>
+                <div class="status-item">
+                    <span class="label">Régimen</span>
+                    <span class="value" id="regime-status" style="font-size:0.85rem;">—</span>
+                </div>
+                <div class="status-item">
+                    <span class="label">Motor IA</span>
+                    <span class="value status-indicator" id="model-status">Inactivo</span>
+                </div>
+            </div>
+        </header>
+
+        <main class="dashboard grid">
+            <!-- Columna Izquierda: Datos y Stats -->
+            <div style="display: flex; flex-direction: column; gap: 2rem;">
+                <section class="panel glass">
+                <div class="panel-header">
+                    <h2><i data-lucide="database"></i> Datos Históricos</h2>
+                </div>
+                <div class="panel-content">
+                    <div class="button-group">
+                        <label for="csv-upload" class="btn secondary action-btn"><i data-lucide="file-text"></i> CSV</label>
+                        <input type="file" id="csv-upload" accept=".csv" style="display:none;">
+                        <label for="pdf-upload" class="btn secondary action-btn"><i data-lucide="file-digit"></i> PDF</label>
+                        <input type="file" id="pdf-upload" accept=".pdf" style="display:none;">
+                        <button id="btn-sync-cloud" class="btn secondary action-btn"><i data-lucide="cloud-download"></i> Online</button>
+                        <button id="btn-seed" class="btn secondary"><i data-lucide="layers"></i> Seed</button>
+                        <button id="btn-clear" class="btn secondary"><i data-lucide="trash-2"></i></button>
+                    </div>
+
+                    <div class="manual-entry-form">
+                        <input type="text" id="manual-date" placeholder="Fecha (Hoy)">
+                        <select id="manual-shift">
+                            <option value="MD">☀️ MD</option>
+                            <option value="EVE">🌙 EVE</option>
+                        </select>
+                        <input type="number" id="manual-n1" placeholder="D1" min="0" max="9">
+                        <input type="number" id="manual-n2" placeholder="D2" min="0" max="9">
+                        <input type="number" id="manual-n3" placeholder="D3" min="0" max="9">
+                        <button id="btn-manual-add" class="btn secondary"><i data-lucide="plus"></i> OK</button>
+                    </div>
+
+                    <div id="data-progress-container" style="display:none;" class="progress-panel">
+                        <div class="progress-header">
+                            <span class="progress-label">PROCESANDO DATOS...</span>
+                            <span id="data-progress-text" class="progress-percentage">0%</span>
+                        </div>
+                        <div class="progress-bar-container">
+                            <div class="progress-bar-fill-orange" id="data-progress-fill"></div>
+                        </div>
+                    </div>
+
+                    <div class="table-container">
+                        <table id="history-table">
+                            <thead><tr><th>Fecha / Turno</th><th>N1</th><th>N2</th><th>N3</th></tr></thead>
+                            <tbody id="history-body"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Stats (Movido de abajo) -->
+            <section class="panel glass">
+                <div class="panel-header">
+                    <h2><i data-lucide="trending-up"></i> Insights de Alta Frecuencia</h2>
+                </div>
+                <div class="panel-content stat-grid" style="display: flex; flex-direction: column; gap: 1rem;">
+                    <div class="stat-card" style="padding: 1rem;">
+                        <div class="stat-icon"><i data-lucide="star"></i></div>
+                        <div><h4>Trío Histórico</h4><div class="stat-value" id="stat-combo">-- -- --</div></div>
+                    </div>
+                    <div class="stat-card" style="padding: 1rem;">
+                        <div class="stat-icon hot"><i data-lucide="flame"></i></div>
+                        <div><h4>Números Calientes</h4><div class="stat-value" id="stat-hot">-- -- --</div></div>
+                    </div>
+                    <div class="stat-card" style="padding: 1rem;">
+                        <div class="stat-icon cold"><i data-lucide="snowflake"></i></div>
+                        <div><h4>Números Fríos</h4><div class="stat-value" id="stat-cold">-- -- --</div></div>
+                    </div>
+                </div>
+            </section>
+        </div>
+
+            <!-- Columna Derecha: IA & Predicciones -->
+            <section class="panel glass">
+                <div class="panel-header">
+                    <h2><i data-lucide="cpu"></i> Motor Neuronal v4.0 (5 Modelos)</h2>
+                </div>
+                <div class="panel-content">
+                    <div class="training-station">
+                        <div class="chart-container"><canvas id="lossChart"></canvas></div>
+                        <div class="progress-container">
+                            <div class="progress-bar"><div class="progress-fill" id="train-progress"></div></div>
+                            <div class="progress-stats">
+                                <span id="epoch-text">Época: 0/150</span>
+                                <span id="loss-text">Loss: --</span>
+                            </div>
+                        </div>
+                        <div style="display: flex; gap: 8px;">
+                            <button id="btn-train" class="btn accent" disabled>Entrenar Red Neuronal v4.0</button>
+                            <button id="btn-stop-train" class="btn secondary" style="display:none; color: var(--accent-red); border-color: rgba(239, 68, 68, 0.4); flex-basis: 35%; align-items: center; justify-content: center; gap: 6px;"><i data-lucide="square"></i> Parar</button>
+                        </div>
+                    </div>
+
+                    <!-- Train Notification -->
+                    <div id="train-notification" class="train-notification" style="display:none;">
+                        <div class="notif-content">
+                            <i data-lucide="alert-circle"></i>
+                            <span>Hay <strong id="pending-count">0</strong> sorteos nuevos sin procesar</span>
+                        </div>
+                        <button id="btn-train-now" class="btn secondary" style="padding:6px 12px;font-size:0.8rem;">Entrenar</button>
+                    </div>
+
+                    <!-- System Confidence Gauge -->
+                    <div id="confidence-gauge" class="confidence-gauge" style="display:none;">
+                        <div class="gauge-header">
+                            <span>🎯 Confianza del Sistema</span>
+                            <span id="confidence-value" class="gauge-value">--</span>
+                        </div>
+                        <div class="gauge-bar-bg"><div id="confidence-bar" class="gauge-bar-fill"></div></div>
+                        <div class="gauge-labels">
+                            <span>Régimen: <strong id="regime-label">—</strong></span>
+                            <span>Entropía: <strong id="entropy-value">—</strong></span>
+                        </div>
+                    </div>
+
+                    <div class="prediction-station">
+                        <h3>☀️ Predicción Midday</h3>
+                        <div class="prediction-list">
+                            <div class="prediction-card">
+                                <div style="display:flex; flex-direction:column; gap:4px;">
+                                    <span class="tag tag-consensus">🤝 CONSENSO ENSEMBLE</span>
+                                    <span style="font-size:0.6rem; color:var(--text-dim); opacity:0.7;">Votación Mayoritaria</span>
+                                </div>
+                                <div class="prediction-balls">
+                                    <div class="ball" id="pred-md-a1">?</div>
+                                    <div class="ball" id="pred-md-a2">?</div>
+                                    <div class="ball" id="pred-md-a3">?</div>
+                                </div>
+                                <span class="conf-badge" id="conf-md-a">—</span>
+                            </div>
+                            <div class="prediction-card">
+                                <div style="display:flex; flex-direction:column; gap:4px;">
+                                    <span class="tag tag-python">🐍 MODELO PYTHON</span>
+                                    <span style="font-size:0.6rem; color:var(--text-dim); opacity:0.7;">Híbrido CNN-LSTM (21-Feat)</span>
+                                </div>
+                                <div class="prediction-balls">
+                                    <div class="ball" id="pred-md-b1">?</div>
+                                    <div class="ball" id="pred-md-b2">?</div>
+                                    <div class="ball" id="pred-md-b3">?</div>
+                                </div>
+                                <span class="conf-badge" id="conf-md-b">—</span>
+                            </div>
+                            <div class="prediction-card">
+                                <div style="display:flex; flex-direction:column; gap:4px;">
+                                    <span class="tag tag-js">🌐 JS TENSORFLOW</span>
+                                    <span style="font-size:0.6rem; color:var(--text-dim); opacity:0.7;">Ensemble Local (4 Modelos)</span>
+                                </div>
+                                <div class="prediction-balls">
+                                    <div class="ball" id="pred-md-c1">?</div>
+                                    <div class="ball" id="pred-md-c2">?</div>
+                                    <div class="ball" id="pred-md-c3">?</div>
+                                </div>
+                                <span class="conf-badge" id="conf-md-c">—</span>
+                            </div>
+                        </div>
+
+                        <h3>🌙 Predicción Evening</h3>
+                        <div class="prediction-list">
+                            <div class="prediction-card">
+                                <div style="display:flex; flex-direction:column; gap:4px;">
+                                    <span class="tag tag-consensus">🤝 CONSENSO ENSEMBLE</span>
+                                    <span style="font-size:0.6rem; color:var(--text-dim); opacity:0.7;">Votación Mayoritaria</span>
+                                </div>
+                                <div class="prediction-balls">
+                                    <div class="ball eve" id="pred-ev-a1">?</div>
+                                    <div class="ball eve" id="pred-ev-a2">?</div>
+                                    <div class="ball eve" id="pred-ev-a3">?</div>
+                                </div>
+                                <span class="conf-badge" id="conf-ev-a">—</span>
+                            </div>
+                            <div class="prediction-card">
+                                <div style="display:flex; flex-direction:column; gap:4px;">
+                                    <span class="tag tag-python">🐍 MODELO PYTHON</span>
+                                    <span style="font-size:0.6rem; color:var(--text-dim); opacity:0.7;">Híbrido CNN-LSTM (21-Feat)</span>
+                                </div>
+                                <div class="prediction-balls">
+                                    <div class="ball eve" id="pred-ev-b1">?</div>
+                                    <div class="ball eve" id="pred-ev-b2">?</div>
+                                    <div class="ball eve" id="pred-ev-b3">?</div>
+                                </div>
+                                <span class="conf-badge" id="conf-ev-b">—</span>
+                            </div>
+                            <div class="prediction-card">
+                                <div style="display:flex; flex-direction:column; gap:4px;">
+                                    <span class="tag tag-js">🌐 JS TENSORFLOW</span>
+                                    <span style="font-size:0.6rem; color:var(--text-dim); opacity:0.7;">Ensemble Local (4 Modelos)</span>
+                                </div>
+                                <div class="prediction-balls">
+                                    <div class="ball eve" id="pred-ev-c1">?</div>
+                                    <div class="ball eve" id="pred-ev-c2">?</div>
+                                    <div class="ball eve" id="pred-ev-c3">?</div>
+                                </div>
+                                <span class="conf-badge" id="conf-ev-c">—</span>
+                            </div>
+                        </div>
+                        <button id="btn-predict" class="btn primary" disabled>☀️🌙 Consultar Oráculo v4.0</button>
+                    </div>
+
+                    <!-- Probability Density -->
+                    <div class="probability-station">
+                        <h3>Análisis de Densidad Neuronal</h3>
+                        <div id="prob-container" class="prob-grid"></div>
+                    </div>
+                </div>
+            </section>
+
+
+
+            <!-- Walk-Forward Validation -->
+            <section class="panel glass full-width" id="walkforward-panel" style="display:none;">
+                <div class="panel-header">
+                    <h2><i data-lucide="bar-chart-3"></i> Validación Walk-Forward (Consistencia Temporal)</h2>
+                </div>
+                <div class="panel-content">
+                    <div class="wf-stats">
+                        <div class="bt-stat"><span class="bt-label">Precisión Promedio</span><span class="bt-value" id="wf-avg-precision">0%</span></div>
+                        <div class="bt-stat"><span class="bt-label">Consistencia</span><span class="bt-value" id="wf-consistency">—</span></div>
+                    </div>
+                    <div class="bt-table-container">
+                        <table class="bt-table">
+                            <thead><tr><th>Fold</th><th>Período</th><th>Muestras</th><th>Plenos</th><th>Precisión Dígito</th></tr></thead>
+                            <tbody id="wf-results-body"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Backtest Panel -->
+            <section class="panel glass full-width" id="backtest-panel" style="display:none;">
+                <div class="panel-header">
+                    <h2><i data-lucide="shield-check"></i> Backtest (Últimos 15 sorteos)</h2>
+                </div>
+                <div class="panel-content">
+                    <div class="backtest-stats">
+                        <div class="bt-stat"><span class="bt-label">Precisión por Dígito</span><span class="bt-value" id="bt-precision">0%</span></div>
+                        <div class="bt-stat"><span class="bt-label">Aciertos Plenos</span><span class="bt-value" id="bt-hits">0</span></div>
+                    </div>
+                    <div class="bt-table-container">
+                        <table class="bt-table">
+                            <thead><tr><th>Fecha</th><th>Real</th><th>Predicción IA</th><th>Resultado</th></tr></thead>
+                            <tbody id="bt-results-body"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Prediction History -->
+            <section class="panel glass full-width" id="pred-history-panel" style="display:none;">
+                <div class="panel-header">
+                    <h2><i data-lucide="history"></i> Historial de Predicciones</h2>
+                </div>
+                <div class="panel-content">
+                    <div class="pred-history-stats">
+                        <div class="bt-stat"><span class="bt-label">Predicciones Totales</span><span class="bt-value" id="ph-total">0</span></div>
+                        <div class="bt-stat"><span class="bt-label">Promedio Aciertos</span><span class="bt-value" id="ph-avg-hits">0</span></div>
+                        <div class="bt-stat"><span class="bt-label">Plenos</span><span class="bt-value" id="ph-full-hits">0</span></div>
+                    </div>
+                    <div class="bt-table-container" style="max-height:250px;">
+                        <table class="bt-table">
+                            <thead><tr><th>Fecha/Hora</th><th>Turno</th><th>Predicciones</th><th>Resultado</th></tr></thead>
+                            <tbody id="ph-body"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </section>
+
+
+        </main>
+    </div>
+
+    <script src="js/database.js?v=3.0"></script>
+    <script src="js/model.js?v=3.0"></script>
+    <script src="js/app.js?v=3.0"></script>
+    <script>lucide.createIcons();</script>
+</body>
+</html>

@@ -1,0 +1,11 @@
+{
+  "name": "ai-oracle-pick3",
+  "version": "1.0.0",
+  "description": "AI Oracle for Pick3 predictions using CNN-LSTM",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "author": "",
+  "license": "ISC"
+}

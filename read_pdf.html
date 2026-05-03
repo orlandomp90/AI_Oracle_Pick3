@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.min.js"></script>
+</head>
+<body>
+    <pre id="out">Leyendo PDF...</pre>
+    <script>
+        pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.worker.min.js';
+        
+        async function readPDF() {
+            try {
+                const loadingTask = pdfjsLib.getDocument('p3.pdf');
+                const pdf = await loadingTask.promise;
+                let fullText = "";
+                // Solo leer las primeras 2 paginas para inspeccion rapida de estructura
+                let numPages = Math.min(2, pdf.numPages);
+                
+                for (let i = 1; i <= numPages; i++) {
+                    const page = await pdf.getPage(i);
+                    const textContent = await page.getTextContent();
+                    const strings = textContent.items.map(item => item.str);
+                    fullText += strings.join(' ') + "\n";
+                }
+                
+                document.getElementById("out").textContent = fullText;
+                console.log("PDF_PARSED_SUCCESS", fullText);
+            } catch (err) {
+                document.getElementById("out").textContent = "Error: " + err.message;
+            }
+        }
+        
+        readPDF();
+    </script>
+</body>
+</html>
